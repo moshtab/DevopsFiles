@@ -1,0 +1,191 @@
+link for How to host Django Application using gunicorn & nginx in Production:-
+    https://www.codewithharry.com/blogpost/django-deploy-nginx-gunicorn
+
+sudo apt-get update 
+
+sudo apt-get install python3-pip python3-dev 
+
+#if any error occcurs like Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?
+  sudo rm /var/lib/apt/lists/lock
+  sudo rm /var/cache/apt/archives/lock
+  sudo rm /var/lib/dpkg/lock 
+
+sudo apt-get update
+
+sudo pip3 install virtualenv
+
+## pip3 freeze | grep -i virtualenv (for checking version)
+
+git clone https://github.com/kadamsagar039/new_chatapp
+ls
+cd new-chatapp
+virtualenv -p /usr/bin/python3 venv
+source venv/bin/activate
+sudo pip3 install -r requirements.txt
+
+pip3 install django bcrypt django-extensions
+pip3 install gunicorn
+
+
+cd fundoo/fundoo
+
+#edit configurations
+	sudo vim settings.py
+        set Allowed hosts ='frontend IP adress or *'
+        set the database configurations
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'database_chatapp',
+        'USER': 'mohsin',
+        'PASSWORD': 'Md78678678',
+        'HOST': 'endpoint of RDS databse',
+        'PORT': '3306',
+    }
+}
+        
+
+python manage.py collectstatic
+##if errors like 
+  0)if mysql command is not working then install mysql-client using below command 	
+    pip install mysqlclient
+  1)ImportError: No module named 'rest_framework'
+    pip3 install djangorestframework
+  2)No module named rest_auth
+    pip install django-rest-auth
+  3)No module named 'channels'
+    python -m pip install -U channels
+  4)Error: No module named psycopg2.extensions
+    sudo apt install python3-psycopg2
+    pip install psycopg2-binary
+  5)import jwt ImportError: No module named jwt
+    pip3 install PyJWT
+    pip install -r requirements.txt(if above not works)
+  6)ImportError: cannot import name 'six' from 'django.utils'
+    pip install django-utils-six
+  7)Django TemplateSyntaxError - 'staticfiles' is not a registered tag library
+    Try {% load static %} instead of {% load staticfiles %}
+
+  8)if my sql is not connecting to database server then go to aws console and change rds db instance to publicly accesible(by enabling DNS hostnames,DNS resolution in VPC) and    change security group configurations of rds db instance by adding 3306 port to inbound rules.  
+
+python manage.py makemigrations
+ 
+python manage.py migrate
+
+sudo ufw allow 8000
+
+python manage.py runserver 0.0.0.0:8000
+
+  
+gunicorn --bind 0.0.0.0:8000 fundoo.wsgi:application
+
+#if above command works fine then exit 
+ctrl+c
+
+
+sudo vim /etc/systemd/system/gunicorn.service
+
+
+[Unit]
+Description=gunicorn daemon
+After=network.target
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/new_chatapp/fundoo
+ExecStart=/home/ubuntu/new_chatapp/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 fundoo.wsgi:application
+[Install]
+WantedBy=multi-user.target
+
+
+
+#reload the system daemon since we added gunicorn.service
+sudo systemctl daemon-reload
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+sudo systemctl status gunicorn
+
+#if error Failed with result 'exit-code' occurs
+    pip install gunicorn==20.0.2
+
+#for checking the application is working or not by below command
+curl http://backendIP:8000
+ 
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+#frontend
+sudo apt-get install nginx
+
+sudo vim /etc/nginx/sites-available/fundoo
+
+server {
+        listen 80;
+        server_name frontendIP;
+        #location = /favicon.ico { access_log off; log_not_found off; }
+        location /static/ {
+                root /home/ubuntu/new_chatapp/fundoo;
+        }
+        location / {
+               include proxy_params;
+               proxy_pass http://backendIP:8000;
+        }
+}
+
+sudo ln -s /etc/nginx/sites-available/fundoo /etc/nginx/sites-enabled
+sudo nginx -t
+sudo rm /etc/nginx/sites-enabled/default
+sudo systemctl restart nginx
+sudo systemctl status nginx
+sudo service status nginx
+
+#for checking the application is working or not by below command
+curl http://localhost
+
+# Check nginx error 
+sudo tail -f /var/log/nginx/error.log
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Use below commands to update and check the python configuration
+	# Edit, save and exit the file
+sudo vim /home/ubuntu/new_chatapp/fundoo/fundoo/settings.py
+#####For checking status####	
+sudo systemctl restart gunicorn
+sudo systemctl status gunicorn
+sudo systemctl nginx restart
+service status nginx
+systemctl status nginx
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+############################errors on webpage 
+0)If 502 badgateway then check niginx configuration and check database configuration in settings.py
+0)jwt error
+  pip3 freeze 
+  pip3 freeze | grep -i jwt
+  pip3 uninstall jwt
+  pip3 uninstall PyJWT=1.7.1
+  pip3 install PyJWT=1.7.1
+1)Template error
+  change staticfiles to static in init.py in templates
+
+2)No module named 'allauth'?
+python -m pip install django-allauth
+
+3)multiple authentication backends configured and therefore must provide the `backend` argument or set the `backend` attribute on the user
+paste in  new_chatapp/env/lib/python3.6/site-packages/django/contrib/auth/__init__.py at line number 80:-backend='django.contrib.auth.backends.ModelBackend'
+
+3)Django TemplateSyntaxError - 'staticfiles' is not a registered tag library
+    Try {% load static %} instead of {% load staticfiles %}	
+
+#if mysql command is not working then install mysql-client using below command 	
+pip install mysqlclient
+#To check whether mysql db instace is connected to our server 
+telnet endpoint portnumber
+#command for connect mysql from ec2	
+mysql -h mysql-instance.cbsgr4lcbtyr.us-east-2.rds.amazonaws.com -u admin -p	
+
+#for testing the backend server working or not
+curl http://172.31.29.180:8000
+-------------------------------------------------------------------------------------------------------------------------------------------------
+code deploy agent
+wget https://aws-codedeploy-us-east-2.s3.us-east-2.amazonaws.com/latest/install

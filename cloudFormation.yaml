@@ -1,0 +1,468 @@
+Description: >
+  This template deploys an application on a VPC with  2 Public Subnets and 2 Private Subnets spread across two Availability zones.
+
+Parameters:
+
+  VpcCIDR:
+    Description: Please enter the IP range(CIDR notation) for this VPC
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range(CIDR notation) for this Public Subnet in the first Availability zone
+    Type: String
+    Default: 10.0.1.0/24
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range(CIDR notation) for this Public Subnet in the second Availability zone
+    Type: String
+    Default: 10.0.2.0/24
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range(CIDR notation) for this Private Subnet in the first Availability zone
+    Type: String
+    Default: 10.0.3.0/24
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range(CIDR notation) for this Private Subnet in the second Availability zone
+    Type: String
+    Default: 10.0.4.0/24      
+  KeyName:
+    Description: Name of an existing  EC2 keypair to enable RDP access to the instance
+    Default: firstEc2
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 keyPair
+  InstanceType:
+    Description: App EC2 instance type  
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+    - t2.micro
+    - t3.micro
+    - m1.small
+    - m1.large
+    ConstraintDescription: must be a valid EC2 instance type.
+  FrontendLoadBalancerScheme:
+    Description: Indicates the Load Balancer InternetFacing
+    Type: String
+    Default: 'internet-facing'
+    AllowedValues:
+    - 'internet-facing'
+    - internal
+  BackendLoadBalancerScheme:
+    Description: Indicates the Load Balancer Internal
+    Type: String
+    Default: internal
+    AllowedValues:
+    - internal
+    - 'internet-facing'    
+  
+
+
+
+Resources:
+
+  MyVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Name
+          Value: CloudFormation VPC
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: CloudFormation_IG
+        - Key: Network
+          Value: Public
+
+  GatewayToInternet:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: "us-east-2a"
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1 (AZ1)
+
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: "us-east-2b"
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2 (AZ2)        
+
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: "us-east-2a"
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1 (AZ1)
+
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: "us-east-2b"
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2 (AZ2)
+
+  PublicRouteTable1:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: Public1 Routes
+        - Key: Network
+          Value: Public
+
+  PublicRoute1:
+    Type: 'AWS::EC2::Route'
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'       
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'       
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable1   
+
+  NatGateway1:
+    Type: "AWS::EC2::NatGateway"
+    DependsOn: NatPublicIP1
+    Properties:     
+      AllocationId: !GetAtt NatPublicIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  NatPublicIP1:
+    Type: "AWS::EC2::EIP"
+    DependsOn: MyVPC
+    Properties:
+      Domain: vpc     
+
+  PrivateRouteTable1:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: Private1 Routes
+        - Key: Network
+          Value: Private
+
+  PrivateRoute1:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'       
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'       
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable1
+
+  FrontendSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Lisstening on port 80.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: FrontEnd-Security-Group
+      VpcId: !Ref MyVPC
+  
+
+  BackendSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: listening on 8000,3306,80 port.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: BackEnd-Security-Group
+      VpcId: !Ref MyVPC
+
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+        DBSubnetGroupDescription: It is the collection of two private subnet
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+        Tags:
+          - Key: Name
+            Value: myDBSubnetGroup   
+
+  RDSDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: 'database_chatapp'
+      AllocatedStorage: '20'
+      DBInstanceClass: 'db.t2.micro'
+      Engine: MySQL
+      MasterUsername: 'mohsin'
+      MasterUserPassword: 'Md78678678'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+      - !Ref BackendSecurityGroup
+      Tags:
+      - Key: Name
+        Value: CloudFormation Database             
+     
+
+  FrontendCloudFormationServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyName
+      DisableApiTermination: true
+      EbsOptimized: true
+      ImageId: ami-08573803b7f87209d
+      SubnetId:
+        Ref: PublicSubnet1
+      SecurityGroupIds:
+      - !Ref FrontendSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Frontend CloudFormation Server
+        - Key: CloudFormation
+          Value: Frontend Server  
+
+  BackendCloudFormationServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyName
+      DisableApiTermination: true
+      EbsOptimized: true
+      ImageId: ami-03fbc14576e7bf33a
+      SubnetId:
+        Ref: PrivateSubnet1
+      SecurityGroupIds:
+      - !Ref BackendSecurityGroup
+      Tags:
+        - Key: Name
+          Value: Backend CloudFormation Server
+        - Key: CloudFormation
+          Value: Backend Server
+
+  LaunchConfigurationBackendCloudFormation:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: ami-0752a257a12e49e2b
+      SecurityGroups:
+      - Ref: BackendSecurityGroup
+      InstanceType: t3.micro
+      
+      
+  AutoScalingBackendCloudFormation:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      LaunchConfigurationName: !Ref LaunchConfigurationBackendCloudFormation
+      MinSize: '1'
+      MaxSize: '5'
+      HealthCheckGracePeriod: 300
+      MaxInstanceLifetime: 2592000
+      TargetGroupARNs:
+        - !Ref BackendTargetGroupCF
+      Tags:
+        - Key: Name
+          Value: ASG-CF-Backend
+          PropagateAtLaunch: true      
+       
+
+  
+
+  TargetPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingBackendCloudFormation
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 80
+
+  BackendTargetGroupCF:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: BackendTargetGroupCF
+      VpcId: !Ref MyVPC
+      Port: 8000
+      Protocol: HTTP 
+
+  BackendLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: Backend-CloudFormationn-LB
+      Scheme: !Ref BackendLoadBalancerScheme
+      Subnets: 
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref BackendSecurityGroup
+      Tags:
+        - Key: Name
+          Value: BackendLB for CloudFormation
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref BackendLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroupCF 
+
+  LaunchConfigurationFrontendCloudFormation:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: ami-011e2226ca3dc1783
+      SecurityGroups:
+      - Ref: FrontendSecurityGroup
+      InstanceType: t3.micro
+
+  AutoScalingFrontendCloudFormation:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LaunchConfigurationName: !Ref LaunchConfigurationFrontendCloudFormation
+      MinSize: '1'
+      MaxSize: '5'
+      HealthCheckGracePeriod: 300
+      MaxInstanceLifetime: 2592000
+      TargetGroupARNs:
+        - !Ref FrontendTargetGroupCF
+      Tags:
+        - Key: Name
+          Value: ASG-CF-Frontend
+          PropagateAtLaunch: true    
+
+  FrontendTargetPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingFrontendCloudFormation
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 80
+
+  FrontendTargetGroupCF:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: FrontendTargetGroupCF
+      VpcId: !Ref MyVPC
+      Port: 80
+      Protocol: HTTP  
+
+  FrontendLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: Frontend-CloudFormationn-LB
+      Scheme: !Ref FrontendLoadBalancerScheme
+      Subnets: 
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref FrontendSecurityGroup
+      Tags:
+        - Key: Name
+          Value: FrontendLB for CloudFormation
+
+  FrontEndLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref FrontendLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroupCF                         
+
+
+  
+
+  
+               
+
+
+
+
+  
+
+                
