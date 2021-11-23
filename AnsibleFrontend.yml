@@ -1,0 +1,26 @@
+---
+  - hosts: frontend
+    name: Frontend server
+    remote_user: ubuntu
+    become: yes
+    gather_facts: yes
+    tasks:
+      - name: Install nginx
+        apt: name=nginx state=present
+      - name: Restart nginx
+        service:
+         name: nginx
+         state: started
+      - name: Copy nginx configuration file
+        copy:
+         src: /home/ubuntu/playbooks/fundoo.cfg
+         dest: /etc/nginx/sites-available/fundoo.cfg
+      - name: For enabling nginx sites enabled
+        file:
+         src: /etc/nginx/sites-available/fundoo.cfg
+         dest: /etc/nginx/sites-enabled/default
+         state: link
+      - name: Restart nginx
+        service:
+         name: nginx
+         state: restarted
