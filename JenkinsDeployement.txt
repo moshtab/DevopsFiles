@@ -1,0 +1,58 @@
+1)First launch a jenkins server on aws
+2)Install jenkins on that server
+3)Add pemkey to /var/lib/jenkins folder
+give chmod 600 firstEc2.pem
+And change ownership permissions to that pemkey
+chown jenkins:jenkins firstEc2.pem
+4)And go to dashboard by JenkinsIP:8080
+CreateItem
+  name: chatappdemo
+  freestyle project
+  ok
+Go to sourcecode
+   github project: paste repo url
+   git: paste repo
+Go to build
+   Add build setup: Execute shell
+   write commands
+rsync -av -e "ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/firstEc2.pem" /var/lib/jenkins/workspace/chatappDemo/    ubuntu@10.0.2.128:/home/ubuntu/new_chatapp
+ 
+
+ssh -i /var/lib/jenkins/firstEc2.pem ubuntu@10.0.2.128 sudo systemctl restart gunicorn   
+
+5)Apply and Save
+Build now
+Check consoleOutput
+
+
+---------------------------------------------------------------------------------------------------------For Jenkins Pipeline
+1)First Write a Jenkinsfile in github repository,in that file write 
+pipeline {
+agent any
+ stages {
+  stage('Build') {
+   steps {
+    sh 'rsync -av -e "ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/firstEc2.pem" /var/lib/jenkins/workspace/chatappPipeline/         ubuntu@10.0.2.128:/home/ubuntu/new_chatapp'
+   }
+ }
+ stage('Deploy') {
+  steps {
+   sh 'ssh -i /var/lib/jenkins/firstEc2.pem ubuntu@10.0.2.128 sudo systemctl restart gunicorn'
+  }
+ }
+}
+}
+
+2)Then Create Item in jenkins Dashborad chose pipeline ok
+ github project: repo
+Go to pipeline
+ Definition : pipeline script from SCM
+ SCM: git
+ Repo url : paste url
+ ScriptPath: Jenkinsfile
+ Apply and Save
+3)Build now and go to console output
+
+
+
+

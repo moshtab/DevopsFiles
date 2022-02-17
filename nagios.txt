@@ -1,0 +1,15 @@
+Links for Installation of nagios:
+1)https://support.nagios.com/kb/article/nagios-core-installing-nagios-core-from-source-96.html#Ubuntu
+
+2) https://www.google.com/url?q=https://assets.nagios.com/downloads/nagioscore/docs/nrpe/NRPE.pdf&sa=D&source=hangouts&ust=1639551833372000&usg=AOvVaw1XjeY_cu5Tn1GMFU1F6SeV
+
+
+Links For Reference:
+3)https://www.digitalocean.com/community/tutorials/how-to-install-nagios-4-and-monitor-your-servers-on-ubuntu-18-04
+
+4)https://www.tecmint.com/how-to-add-linux-host-to-nagios-monitoring-server/
+
+
+Link for seeing ping:
+5)https://linux.101hacks.com/unix/check-ping/
+

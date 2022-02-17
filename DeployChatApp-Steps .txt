@@ -110,6 +110,9 @@ sudo systemctl status gunicorn
 
 #for checking the application is working or not by below command
 curl http://backendIP:8000
+
+For troubleshooting do
+python3 manage.py runserver
  
 -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -141,8 +144,10 @@ sudo service status nginx
 #for checking the application is working or not by below command
 curl http://localhost
 
-# Check nginx error 
+# Check nginx error
+sudo nginx -t 
 sudo tail -f /var/log/nginx/error.log
+#For trubleshooting nginx server link: https://www.digitalocean.com/community/questions/how-to-troubleshoot-common-nginx-issues-on-linux-server
 
 -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -189,3 +194,40 @@ curl http://172.31.29.180:8000
 -------------------------------------------------------------------------------------------------------------------------------------------------
 code deploy agent
 wget https://aws-codedeploy-us-east-2.s3.us-east-2.amazonaws.com/latest/install
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+Jenkins Installation on ubuntu
+
+sudo apt install openjdk-8-jre-headless
+wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add -
+sudo sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+sudo apt update
+sudo apt install jenkins
+sudo systemctl status jenkins
+
+
+In Jenkins Dashbord after creating Item In build select Execute shell
+1) rsync -av -e "ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/firstEc2.pem" /var/lib/jenkins/workspace/chatappDemo/    ubuntu@10.0.2.128:/home/ubuntu/new_chatapp
+2) ssh -i /var/lib/jenkins/firstEc2.pem ubuntu@10.0.2.128 sudo systemctl restart gunicorn 
+
+For pipeline we have to write a Jenkinsfile
+pipeline {
+ agent any
+  stages {
+   stage('Build') {
+    steps {
+     sh 'rsync -av -e "ssh -o StrictHostKeyChecking=no -i /var/lib/jenkins/firstEc2.pem" /var/lib/jenkins/workspace/chatappPipeline/         ubuntu@10.0.2.128:/home/ubuntu/new_chatapp'
+    }
+  }
+  stage('Deploy') {
+   steps {
+    sh 'ssh -i /var/lib/jenkins/firstEc2.pem ubuntu@10.0.2.128 sudo systemctl restart gunicorn'
+   }
+  }
+ }
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+docker run -d --name backend_container backend_image --link database_container:database_image backend_image
+
+
